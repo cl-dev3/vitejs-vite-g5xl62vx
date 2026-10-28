@@ -1,0 +1,64 @@
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@media print {
+  /* 1. ベースのリセット (いただいたコードをそのまま継承) */
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* 2. 印刷時に不要なUI（ボタン、ヘッダーの操作系、ボトムシートなど）を完全に隠す */
+  header,
+  footer,
+  button,
+  .no-print,
+  .row-editor-sheet,
+  .chart-controls {
+    display: none !important;
+  }
+
+  /* 3. 上部プレビュー（SVG編み図）の印刷調整 */
+  /* A4用紙の1ページ目にきれいに収まるよう、高さを固定または適切に制限 */
+  .chart-preview-container,
+  svg {
+    max-height: 350px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* 4. 段カード一覧のリストが途中で不自然に切れないようにする */
+  .row-card-list {
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* 各段のカードはページ途中で分断されないようにする */
+  .row-card {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    margin-bottom: 6px !important;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm;
+}
