@@ -84,23 +84,63 @@ describe('立ち上がり', () => {
     );
   });
 
-  test('長編み: 鎖3目は1目に数え、残りの目をユニットが受け持つ', () => {
+  test('立ち上がりを1目に数えても、段の目数（入る・出る）は変わらない', () => {
     const c = computeProject([
       ring(),
-      row('round', [unit('dc_inc', 5)], 1, { turning: { chains: 3 } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3 } }),
     ]);
     expect(c.rows[1].stitchesIn).toBe(6);
-    expect(c.rows[1].stitchesOut).toBe(11);
+    expect(c.rows[1].stitchesOut).toBe(6);
     expect(c.rows[1].valid).toBe(true);
     expect(c.rows[1].text).toBe(
-      '第2段：立ち上がり鎖3目（1目に数える）、残りのすべての目に長編みの増し目を編み入れる（計11目）'
+      '第2段：立ち上がり鎖3目（1目に数える）、残りのすべての目に長編みを編む（計6目）'
+    );
+  });
+
+  test('全目増し目: 立ち上がり1＋細編み1＋増し目5（計12目）', () => {
+    const c = computeProject([
+      ring(),
+      row('round', [unit('inc')], 6, { turning: { chains: 1, counted: true } }),
+    ]);
+    expect(c.rows[1].stitchesIn).toBe(6);
+    expect(c.rows[1].stitchesOut).toBe(12);
+    expect(c.rows[1].valid).toBe(true);
+    expect(c.rows[1].text).toBe(
+      '第2段：立ち上がり鎖1目（1目に数える）、細編み1目、増し目5目（計12目）'
+    );
+  });
+
+  test('長編みの増し目: 立ち上がり鎖3目＋長編み1目＋長編みの増し目5目', () => {
+    const c = computeProject([
+      ring(),
+      row('round', [unit('dc_inc')], 6, { turning: { chains: 3 } }),
+    ]);
+    expect(c.rows[1].stitchesOut).toBe(12);
+    expect(c.rows[1].valid).toBe(true);
+    expect(c.rows[1].text).toBe(
+      '第2段：立ち上がり鎖3目（1目に数える）、長編み1目、長編みの増し目5目（計12目）'
+    );
+  });
+
+  test('複数のアクションの繰り返し: 最初の1目だけが立ち上がりに置き換わる', () => {
+    const c = computeProject([
+      ring(),
+      row('round', [unit('sc'), unit('inc')], 3, {
+        turning: { chains: 1, counted: true },
+      }),
+    ]);
+    expect(c.rows[1].stitchesIn).toBe(6);
+    expect(c.rows[1].stitchesOut).toBe(9);
+    expect(c.rows[1].valid).toBe(true);
+    expect(c.rows[1].text).toBe(
+      '第2段：立ち上がり鎖1目（1目に数える）、増し目、（細編み1目、増し目）を2回繰り返す（計9目）'
     );
   });
 
   test('輪にする（join）', () => {
     const c = computeProject([
       ring(),
-      row('round', [unit('dc', 5)], 1, { turning: { chains: 3, join: true } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3, join: true } }),
     ]);
     expect(c.rows[1].valid).toBe(true);
     expect(c.rows[1].text).toBe(
@@ -118,16 +158,6 @@ describe('立ち上がり', () => {
     expect(c.rows[1].valid).toBe(true);
     expect(c.rows[1].text).toBe(
       '第2段：立ち上がり鎖3目、すべての目に長編みを編む（計6目）'
-    );
-  });
-
-  test('数える立ち上がりを足すと、ユニットが全目を受け持つ段は目数が合わなくなる', () => {
-    const c = computeProject([
-      ring(),
-      row('round', [unit('dc', 6)], 1, { turning: { chains: 3 } }),
-    ]);
-    expect(c.rows[1].errors).toContain(
-      '前段の目数(6)と消費目数(7)が一致しません（差 1）'
     );
   });
 

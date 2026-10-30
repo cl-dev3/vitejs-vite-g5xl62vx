@@ -48,7 +48,7 @@ describe('立ち上がり', () => {
   test('1目に数える鎖は、前段の最初の目の上に1目ぶん立つ', () => {
     const g = buildGeometry([
       ring(),
-      row('round', [unit('dc', 5)], 1, { turning: { chains: 3 } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3 } }),
     ]);
     const r1 = ringOf(g, 1);
     expect(r1).toHaveLength(6);

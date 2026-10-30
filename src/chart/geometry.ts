@@ -1,6 +1,7 @@
 import { computeProject } from '../domain/compute'
 import { FOUNDATION_LIMITS, foundationStitches } from '../domain/foundation'
 import {
+  INC_BASE,
   TURNING_MAX,
   isIncKind,
   isTurningCounted,
@@ -32,9 +33,6 @@ const EXTRA_PAD = 5
 
 /** 数えない立ち上がり＋引き抜きのとき、○と●を左右に離す距離 */
 const MARK_SHIFT = 2.4
-
-/** 楕円で、数えない立ち上がりの○●を、最後の目と重ならないよう外側へずらす距離 */
-const MARK_OUT = 4.5
 
 /** 増し目のV記号の頂点を、親の記号の外側（先端）へずらす距離 */
 const APEX_OUT = 3
@@ -152,7 +150,7 @@ function expandRing(row: Row, prevN: number): Slot[] {
     const n = row.foundation ? foundationStitches(row.foundation) : 0
     const kind = row.units[0]?.kind ?? 'sc'
     for (let i = 0; i < n; i++) slots.push({ kind, parents: [], lean: 0 })
-    // 立ち上がりを1目に数える場合: 最初の1目が、立ち上がりの鎖になる
+    // 立ち上がりを1目に数える場合: 最初の1目が、立ち上がりの鎖に置き換わる
     if (n > 0 && row.turning && isTurningCounted(row.turning)) {
       slots[0] = { kind: 'ch', parents: [], lean: 0 }
     }
@@ -163,16 +161,6 @@ function expandRing(row: Row, prevN: number): Slot[] {
   // 目数がずれた不正な段でも壊れないよう、親の index は範囲内に丸める
   const par = (i: number) => Math.min(i, prevN - 1)
   let p = 0
-
-  // 立ち上がりの鎖を1目に数える場合: 前段の最初の目の上（輪の作り目なら輪の上）に1目ぶん立つ
-  if (
-    row.turning &&
-    isTurningCounted(row.turning) &&
-    (hasParents || row.kind === 'magic_ring')
-  ) {
-    slots.push({ kind: 'ch', parents: hasParents ? [par(0)] : [], lean: 0 })
-    if (hasParents) p += 1
-  }
 
   for (let r = 0; r < row.repeat; r++) {
     for (const u of row.units) {
@@ -202,6 +190,21 @@ function expandRing(row: Row, prevN: number): Slot[] {
       }
     }
   }
+
+  // 立ち上がりを1目に数える場合: 段の最初の1目が、立ち上がりの鎖に置き換わる。
+  // 最初が増し目なら、残りの1目は土台の編み目（細編みなど）になる
+  if (
+    slots.length > 0 &&
+    row.turning &&
+    isTurningCounted(row.turning) &&
+    (hasParents || row.kind === 'magic_ring')
+  ) {
+    const first = slots[0]
+    slots[0] = { kind: 'ch', parents: first.parents, lean: 0 }
+    if (isIncKind(first.kind) && slots.length > 1 && slots[1].kind === first.kind && slots[1].lean === -1) {
+      slots[1] = { kind: INC_BASE[first.kind] ?? 'sc', parents: slots[1].parents, lean: 0 }
+    }
+  }
   return slots
 }
 
@@ -221,18 +224,16 @@ export function buildGeometry(
   // 鎖の右端（編み始めの端。立ち上がりの鎖が立つ位置）
   const chainEnd: Pt | null = foundation ? [((foundation.chains - 1) / 2) * W, 0] : null
 
-  // 楕円で、1周目の立ち上がりを1目に数えるときは、全段の目の並びを1目ぶん時計回りにずらす。
-  // 最初の目（立ち上がりの鎖）が作り目の右端に来て、次の実際の目は動かない
-  const firstTurning =
-    first?.kind === 'chain_foundation' ? validTurning(first.turning) : null
-  const ovalRot = foundation && firstTurning && isTurningCounted(firstTurning) ? -1 : 0
+  // 楕円は、全段の目の並びを1目ぶん時計回りにずらす。
+  // 1目目が作り目の右端の上に来て、2目目から上辺になる（立ち上がりの有無に関係なく）
+  const ovalRot = foundation ? -1 : 0
 
-  /** 周の割合 frac の位置（半径 Rr のリング。out だけ外側へずらす） */
-  const atFrac = (frac: number, Rr: number, out = 0): Pt => {
+  /** 周の割合 frac の位置（半径 Rr のリング） */
+  const atFrac = (frac: number, Rr: number): Pt => {
     const Pr = 2 * core + 2 * Math.PI * Rr
     const f = ((frac % 1) + 1) % 1
     const p = pathPoint(f * Pr, core, Rr)
-    return [p.x + out * Math.cos(p.angle), p.y + out * Math.sin(p.angle)]
+    return [p.x, p.y]
   }
 
   // 1. 段の展開（rowSpan 回コピー）とスロット化
@@ -269,7 +270,7 @@ export function buildGeometry(
     const N = e.slots.length
     const R = radii[k]
     const perimeter = 2 * core + 2 * Math.PI * R
-    /** i 番目の目が、円周上の何番目の位置か（楕円で立ち上がりを数えるときだけ1つずれる） */
+    /** i 番目の目が、円周上の何番目の位置か（楕円は1つずれる） */
     const posOf = (i: number) => (N > 0 ? (((i + ovalRot) % N) + N) % N : 0)
 
     // 反時計回り。目は、円周上の（位置 + 0.5）目の場所に置く
@@ -354,7 +355,7 @@ export function buildGeometry(
         (j - (L - 1) / 2) * W,
         0,
       ])
-      // 円周上の i 番目の位置が編み入れる鎖の目。
+      // 円周上の q 番目の位置が編み入れる鎖の目。
       // 順番: 上辺（右→左: 鎖L-2〜1）→ 左端（鎖0）→ 下辺（左→右: 鎖1〜L-2）→ 右端（鎖L-1）
       const chainIndexOf = (q: number): number => {
         if (q < L - 2) return L - 2 - q
@@ -374,6 +375,7 @@ export function buildGeometry(
 
     // 立ち上がりの鎖（○）と、編み終わりの引き抜き編み（●）
     // 並び順（反時計回り）: 最後の目 → ●（右）→ ○（立ち上がり・左）→ 最初の目
+    // 円も楕円も同じ。出発点は「最初の目の半目手前」
     const t =
       e.row.kind === 'round' ||
       e.row.kind === 'chain_foundation' ||
@@ -383,37 +385,43 @@ export function buildGeometry(
     if (t && N > 0) {
       const isFoundationRow = e.row.kind === 'chain_foundation'
       const counted = isTurningCounted(t)
-      const oval = core > 0
       const prevR = k > 0 ? radii[k - 1] : Math.max(0, R - DR_MIN)
+      const f0 = ovalRot / N // この段の出発点の、周の割合
+      const d = MARK_SHIFT / perimeter
       const marks: Pt[] = []
       let join: Pt | null = null
 
       if (counted) {
         // 1目に数える: 最初の目の位置が、鎖の一番上。そこへ向かって下の鎖を積む
         const top: Pt = [current[0].x, current[0].y]
+        const parent = prevNodes[current[0].parentIdx[0]]
         const from: Pt | null = isFoundationRow
           ? chainEnd
-          : prevNodes[0]
-            ? [prevNodes[0].x, prevNodes[0].y]
+          : parent
+            ? [parent.x, parent.y]
             : atFrac((ovalRot + 0.5) / N, prevR)
         if (from) {
           for (let j = 1; j < t.chains; j++) marks.push(lerp(from, top, j / t.chains))
         }
         // ●: 最後の目と、最初の目（○）の間
-        if (t.join) join = atFrac(ovalRot / N, R)
+        if (t.join) join = atFrac(f0, R)
       } else {
-        // 数えない: 鎖は目の位置に入らない。円は出発点（12時）、楕円は作り目の右端に立つ。
-        // 楕円では、最後の目と重ならないよう、少し外側にずらす
-        const out = oval ? MARK_OUT : 0
-        const fc = oval ? -0.5 / N : 0
-        const d = MARK_SHIFT / perimeter
-        const fTop = t.join ? fc + d : fc // ●があるときは、○を少し先（左）へ
-        const top = atFrac(fTop, R, out)
-        const from: Pt | null = isFoundationRow ? chainEnd : atFrac(fTop, prevR, out)
+        // 数えない: 鎖は目の位置に入らない。出発点の少し先（左）に○、手前（右）に●
+        const fTop = t.join ? f0 + d : f0
+        const top = atFrac(fTop, R)
+        let from: Pt | null
+        if (isFoundationRow) {
+          from = chainEnd
+        } else if (prevNodes.length > 0) {
+          const Pp = 2 * core + 2 * Math.PI * prevR
+          from = atFrac(ovalRot / prevNodes.length + (t.join ? MARK_SHIFT / Pp : 0), prevR)
+        } else {
+          from = atFrac(fTop, prevR)
+        }
         if (from) {
           for (let j = 1; j <= t.chains; j++) marks.push(lerp(from, top, j / t.chains))
         }
-        if (t.join) join = atFrac(fc - d, R, out) // ●は手前（右）
+        if (t.join) join = atFrac(f0 - d, R)
       }
 
       turnings.push({ rowIndex: k, rowId: e.row.id, points: marks, join })
