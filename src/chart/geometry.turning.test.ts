@@ -6,7 +6,6 @@ import { buildGeometry, type ChartGeometry } from './geometry'
 import { stadiumPointCcw } from './stadium'
 
 const SHIFT = 2.4 // geometry.ts の MARK_SHIFT
-const OUT = 4.5 // geometry.ts の MARK_OUT
 
 let seq = 0
 const unit = (kind: StitchKind, count = 1) => ({ id: `u${seq++}`, kind, count })
@@ -72,14 +71,16 @@ describe('立ち上がりの鎖と引き抜き編み（円）', () => {
     expect(t.join).toBeNull()
   })
 
-  test('1目に数える立ち上がり3目: 最初の目が○で、手前に2つ積む', () => {
+  test('1目に数える立ち上がり3目: 最初の目が○に置き換わり、手前に2つ積む。目数は変わらない', () => {
     const g = buildGeometry([
       ring(),
-      row('round', [unit('dc', 5)], 1, { turning: { chains: 3 } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3 } }),
     ])
     const ring0 = g.nodes.filter((n) => n.rowIndex === 0)
     const ring1 = g.nodes.filter((n) => n.rowIndex === 1)
+    expect(ring1).toHaveLength(6)
     expect(ring1[0].kind).toBe('ch')
+    expect(ring1.slice(1).every((n) => n.kind === 'dc')).toBe(true)
     const t = g.turnings[0]
     expect(t.points).toHaveLength(2)
     const base: [number, number] = [ring0[0].x, ring0[0].y]
@@ -91,10 +92,27 @@ describe('立ち上がりの鎖と引き抜き編み（円）', () => {
     })
   })
 
+  test('全目増し目＋立ち上がり1目に数える: 立ち上がり1＋細編み1＋増し目5（12目）', () => {
+    const g = buildGeometry([
+      ring(),
+      row('round', [unit('inc')], 6, { turning: { chains: 1, counted: true } }),
+    ])
+    const ring1 = g.nodes.filter((n) => n.rowIndex === 1)
+    expect(ring1).toHaveLength(12)
+    expect(ring1[0].kind).toBe('ch')
+    expect(ring1[1].kind).toBe('sc') // 最初の増し目の、残りの1目
+    expect(ring1[1].glyph).toBe(false)
+    expect(ring1.slice(2).every((n) => n.kind === 'inc')).toBe(true)
+    expect(g.incGlyphs).toHaveLength(5) // 残りの増し目5組
+    // 立ち上がりと細編みは、同じ親（前段の最初の目）
+    expect(ring1[0].parentIdx).toEqual([0])
+    expect(ring1[1].parentIdx).toEqual([0])
+  })
+
   test('数える立ち上がり＋引き抜き: ●は、最後の目と最初の目(○)のちょうど真ん中', () => {
     const g = buildGeometry([
       ring(),
-      row('round', [unit('dc', 5)], 1, { turning: { chains: 3, join: true } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3, join: true } }),
     ])
     const ring1 = g.nodes.filter((n) => n.rowIndex === 1)
     const j = g.turnings[0].join!
@@ -112,7 +130,7 @@ describe('立ち上がりの鎖と引き抜き編み（円）', () => {
   test('反時計回りに読む: 最後の目（右）→ ●（12時）→ ○・最初の目（左）', () => {
     const g = buildGeometry([
       ring(),
-      row('round', [unit('dc', 5)], 1, { turning: { chains: 3, join: true } }),
+      row('round', [unit('dc', 6)], 1, { turning: { chains: 3, join: true } }),
     ])
     const ring1 = g.nodes.filter((n) => n.rowIndex === 1)
     const j = g.turnings[0].join!
@@ -123,7 +141,7 @@ describe('立ち上がりの鎖と引き抜き編み（円）', () => {
   test('1目に数える立ち上がり1目: 鎖は最初の目だけ（積む○なし）。引き抜きだけ出る', () => {
     const g = buildGeometry([
       ring(),
-      row('round', [unit('sc', 5)], 1, {
+      row('round', [unit('sc', 6)], 1, {
         turning: { chains: 1, counted: true, join: true },
       }),
     ])
@@ -141,7 +159,7 @@ describe('立ち上がりの鎖と引き抜き編み（円）', () => {
   })
 })
 
-describe('鎖の作り目（楕円）の1段目の立ち上がり', () => {
+describe('楕円（鎖の作り目）の立ち上がり', () => {
   const W = 14
   const core = 8 * W
   const chainEnd = (9 / 2) * W // 鎖10目の右端（x=63）
@@ -150,34 +168,77 @@ describe('鎖の作り目（楕円）の1段目の立ち上がり', () => {
     buildGeometry([
       { ...createFoundationRow(10, 3, kind), ...(turning ? { turning } : {}) },
     ])
-  /** 1周目のリングの、周の割合 frac の位置（out だけ外側） */
-  const at = (g: ChartGeometry, frac: number, out = 0): [number, number] => {
+  /** 1周目のリングの、周の割合 frac の位置 */
+  const at = (g: ChartGeometry, frac: number): [number, number] => {
     const R0 = g.rings[0].radius
     const P = 2 * core + 2 * Math.PI * R0
     const f = ((frac % 1) + 1) % 1
     const p = stadiumPointCcw(f * P, core, R0)
-    return [p.x + out * Math.cos(p.angle), p.y + out * Math.sin(p.angle)]
+    return [p.x, p.y]
   }
+  const dist = (a: [number, number], b: [number, number]) =>
+    Math.hypot(a[0] - b[0], a[1] - b[1])
 
-  test('1目に数える（鎖2目）: 立ち上がりが作り目の右端に立ち、1目目は右から2つ目の上のまま', () => {
+  test('1目目は作り目の右端の上。2目目から上辺。立ち上がりを付けても動かない', () => {
+    for (const g of [
+      oval(),
+      oval({ chains: 1 }),
+      oval({ chains: 1, join: true }),
+      oval({ chains: 2, counted: false }),
+    ]) {
+      const ring0 = g.nodes.filter((n) => n.rowIndex === 0)
+      expect(ring0[0].x).toBeCloseTo(chainEnd, 0)
+      expect(ring0[0].y).toBeLessThan(0)
+      expect(ring0[1].x).toBeCloseTo((8 - 4.5) * W, 5)
+      expect(ring0[1].y).toBeCloseTo(-g.rings[0].radius, 5)
+    }
+  })
+
+  test('数えない（鎖1目）＋引き抜き: 1目目の右側に、○（左）・●（右）。円と同じ並び', () => {
+    const g = oval({ chains: 1, join: true })
+    const R0 = g.rings[0].radius
+    const P = 2 * core + 2 * Math.PI * R0
+    const d = SHIFT / P
+    const f0 = -1 / 22
+    const t = g.turnings[0]
+    const top = at(g, f0 + d)
+    const join = at(g, f0 - d)
+    expect(t.points).toHaveLength(1)
+    expect(t.points[0][0]).toBeCloseTo(top[0], 5)
+    expect(t.points[0][1]).toBeCloseTo(top[1], 5)
+    expect(t.join![0]).toBeCloseTo(join[0], 5)
+    expect(t.join![1]).toBeCloseTo(join[1], 5)
+
+    // 1目目の「右側」: 1目目から離れていて、1目目の上には乗らない
+    const first = g.nodes.filter((n) => n.rowIndex === 0)[0]
+    expect(dist(t.points[0], [first.x, first.y])).toBeGreaterThan(4)
+    expect(dist(t.join!, [first.x, first.y])).toBeGreaterThan(8)
+    // ○は●より1目目に近い（○→●の順に右へ離れる）
+    expect(dist(t.points[0], [first.x, first.y])).toBeLessThan(
+      dist(t.join!, [first.x, first.y]),
+    )
+  })
+
+  test('数えない2目: 作り目の右端から、出発点（1目目の右側）へ向かって積む', () => {
+    const g = oval({ chains: 2, counted: false })
+    const top = at(g, -1 / 22)
+    const t = g.turnings[0]
+    expect(t.points).toHaveLength(2)
+    expect(t.points[1][0]).toBeCloseTo(top[0], 5)
+    expect(t.points[1][1]).toBeCloseTo(top[1], 5)
+    expect(t.points[0][0]).toBeCloseTo((chainEnd + top[0]) / 2, 5)
+    expect(t.points[0][1]).toBeCloseTo(top[1] / 2, 5)
+  })
+
+  test('1目に数える（鎖2目・中長編み）: 1目目が○（鎖）に置き換わり、2目目から中長編み', () => {
     const g = oval({ chains: 2 }, 'hdc')
     const ring0 = g.nodes.filter((n) => n.rowIndex === 0)
-    const plain = oval(undefined, 'hdc').nodes
-
     expect(ring0).toHaveLength(22)
     expect(ring0[0].kind).toBe('ch')
-    // 立ち上がり: 作り目の右端（x≈63）のすぐ上
     expect(ring0[0].x).toBeCloseTo(chainEnd, 0)
-    expect(ring0[0].y).toBeLessThan(0)
-    // 最初の実際の目: 立ち上がりの有無でずれない（作り目の右から2つ目の真上）
     expect(ring0[1].kind).toBe('hdc')
-    expect(ring0[1].x).toBeCloseTo(plain[0].x, 5)
-    expect(ring0[1].y).toBeCloseTo(plain[0].y, 5)
     expect(ring0[1].x).toBeCloseTo((8 - 4.5) * W, 5)
-    expect(ring0[1].y).toBeCloseTo(-g.rings[0].radius, 5)
-
     expect(g.turnings[0].points).toHaveLength(1)
-    // 作り目の鎖との対応
     expect(g.chain!.links[0].to[0]).toBeCloseTo(chainEnd, 6)
     expect(g.chain!.links[1].to[0]).toBeCloseTo((8 - 4.5) * W, 6)
   })
@@ -191,59 +252,27 @@ describe('鎖の作り目（楕円）の1段目の立ち上がり', () => {
     expect(j[1]).toBeCloseTo(expected[1], 5)
     const last = ring0[ring0.length - 1]
     const turn = ring0[0]
-    const dLast = Math.hypot(j[0] - last.x, j[1] - last.y)
-    const dTurn = Math.hypot(j[0] - turn.x, j[1] - turn.y)
-    expect(dLast).toBeCloseTo(dTurn, 5)
-    expect(dLast).toBeGreaterThan(4)
+    expect(dist(j, [last.x, last.y])).toBeCloseTo(dist(j, [turn.x, turn.y]), 5)
+    expect(dist(j, [last.x, last.y])).toBeGreaterThan(4)
   })
 
-  test('数えない2目: 作り目の右端から、右端の少し外側へ向かって2つ積む', () => {
-    const g = oval({ chains: 2, counted: false })
-    const top = at(g, -0.5 / 22, OUT)
-    const t = g.turnings[0]
-    expect(t.points).toHaveLength(2)
-    expect(t.points[1][0]).toBeCloseTo(top[0], 5)
-    expect(t.points[1][1]).toBeCloseTo(top[1], 5)
-    expect(t.points[0][0]).toBeCloseTo((chainEnd + top[0]) / 2, 5)
-    expect(t.points[0][1]).toBeCloseTo(top[1] / 2, 5)
-    // 作り目の右端に近い
-    expect(Math.abs(t.points[1][0] - chainEnd)).toBeLessThan(6)
-    // 1目目はずれない
-    const plain = oval()
-    expect(g.nodes[0].x).toBeCloseTo(plain.nodes[0].x, 6)
-    expect(g.nodes[0].y).toBeCloseTo(plain.nodes[0].y, 6)
-  })
-
-  test('数えない＋引き抜き: ○は先（左）、●は手前（右）。最後の目とは重ならない', () => {
-    const g = oval({ chains: 1, join: true })
-    const R0 = g.rings[0].radius
-    const P = 2 * core + 2 * Math.PI * R0
-    const d = SHIFT / P
-    const t = g.turnings[0]
-    const top = at(g, -0.5 / 22 + d, OUT)
-    const join = at(g, -0.5 / 22 - d, OUT)
-    expect(t.points).toHaveLength(1)
-    expect(t.points[0][0]).toBeCloseTo(top[0], 5)
-    expect(t.points[0][1]).toBeCloseTo(top[1], 5)
-    expect(t.join![0]).toBeCloseTo(join[0], 5)
-    expect(t.join![1]).toBeCloseTo(join[1], 5)
-    const ring0 = g.nodes.filter((n) => n.rowIndex === 0)
-    const last = ring0[ring0.length - 1]
-    for (const p of [t.points[0], t.join!]) {
-      expect(Math.hypot(p[0] - last.x, p[1] - last.y)).toBeGreaterThan(4)
-    }
-  })
-
-  test('2周目以降も、同じ向きにそろう（1目に数える立ち上がりのとき）', () => {
+  test('2段目以降も同じ並び: 1目目が右端の上、2目目から上辺', () => {
     const g = buildGeometry([
-      { ...createFoundationRow(10, 3, 'hdc'), turning: { chains: 2 } },
-      row('round', [unit('sc', 8), unit('inc', 3)], 2),
+      createFoundationRow(10, 3),
+      row('round', [unit('sc', 8), unit('inc', 3)], 2, {
+        turning: { chains: 1, join: true },
+      }),
     ])
     const ring1 = g.nodes.filter((n) => n.rowIndex === 1)
     expect(ring1).toHaveLength(28)
-    // 2つ目の目が、上辺の最初の位置（立ち上がりは右端、次の目から上辺）
-    expect(ring1[1].y).toBeCloseTo(-g.rings[1].radius, 5)
-    expect(g.rings.map((r) => r.count)).toEqual([22, 28])
+    expect(ring1[0].x).toBeGreaterThan(core / 2) // 右端の円弧の上側
+    expect(ring1[0].y).toBeLessThan(0)
+    expect(ring1[1].y).toBeCloseTo(-g.rings[1].radius, 5) // 2目目から上辺
+    // 立ち上がり・引き抜きは、1目目の右側（円と同じ並び）
+    const t = g.turnings.find((x) => x.rowIndex === 1)!
+    expect(t.points).toHaveLength(1)
+    expect(dist(t.points[0], [ring1[0].x, ring1[0].y])).toBeGreaterThan(4)
+    expect(t.points[0][0]).toBeGreaterThan(core / 2)
   })
 })
 

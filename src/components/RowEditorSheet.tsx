@@ -1,11 +1,11 @@
-import { nanoid } from 'nanoid';
-import { useEffect, useState } from 'react';
-import { computeRow, computeUnit } from '../domain/compute';
-import type { EditContext } from '../domain/draft';
-import { FOUNDATION_LIMITS } from '../domain/foundation';
-import { standardTurning, type PresetResult } from '../domain/presets';
-import { KIND_LABEL, isTurningCounted } from '../domain/stitchTable';
-import { fitRepeatToPrev, suggestedRepeat } from '../domain/turning';
+import { nanoid } from 'nanoid'
+import { useEffect, useState } from 'react'
+import { computeRow, computeUnit } from '../domain/compute'
+import type { EditContext } from '../domain/draft'
+import { FOUNDATION_LIMITS } from '../domain/foundation'
+import { standardTurning, type PresetResult } from '../domain/presets'
+import { KIND_LABEL, isTurningCounted } from '../domain/stitchTable'
+import { suggestedRepeat } from '../domain/turning'
 import type {
   Foundation,
   Row,
@@ -14,30 +14,30 @@ import type {
   StitchKind,
   Turning,
   Unit,
-} from '../domain/types';
-import PresetChips from './PresetChips';
-import Stepper from './Stepper';
-import TurningEditor from './TurningEditor';
-import UnitEditor from './UnitEditor';
+} from '../domain/types'
+import PresetChips from './PresetChips'
+import Stepper from './Stepper'
+import TurningEditor from './TurningEditor'
+import UnitEditor from './UnitEditor'
 
 const SECTION_LABEL: Record<Section, string> = {
   crown: '頭頂',
   body: '本体',
   brim: '縁',
   free: 'その他',
-};
+}
 
-const FOUNDATION_KINDS: StitchKind[] = ['sc', 'hdc', 'dc'];
-const DEFAULT_FOUNDATION: Foundation = { chains: 10, endStitches: 3 };
+const FOUNDATION_KINDS: StitchKind[] = ['sc', 'hdc', 'dc']
+const DEFAULT_FOUNDATION: Foundation = { chains: 10, endStitches: 3 }
 
 interface Props {
-  title: string;
-  initial: Row;
-  context: EditContext;
-  crownIncrement: number;
-  onSave: (row: Row) => void;
-  onCancel: () => void;
-  onDraftChange?: (row: Row) => void;
+  title: string
+  initial: Row
+  context: EditContext
+  crownIncrement: number
+  onSave: (row: Row) => void
+  onCancel: () => void
+  onDraftChange?: (row: Row) => void
 }
 
 export default function RowEditorSheet({
@@ -49,94 +49,69 @@ export default function RowEditorSheet({
   onCancel,
   onDraftChange,
 }: Props) {
-  const [draft, setDraft] = useState<Row>(initial);
-  const [ignore, setIgnore] = useState(false);
+  const [draft, setDraft] = useState<Row>(initial)
+  const [ignore, setIgnore] = useState(false)
   useEffect(() => {
-    onDraftChange?.(draft);
-  }, [draft, onDraftChange]);
+    onDraftChange?.(draft)
+  }, [draft, onDraftChange])
 
-  const c = computeRow(
-    draft,
-    context.prevOut,
-    context.startNo,
-    context.isFirst
-  );
-  const isFoundation = draft.kind === 'chain_foundation';
-  const F = FOUNDATION_LIMITS;
+  const c = computeRow(draft, context.prevOut, context.startNo, context.isFirst)
+  const isFoundation = draft.kind === 'chain_foundation'
+  const F = FOUNDATION_LIMITS
 
-  const patch = (p: Partial<Row>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<Row>) => setDraft((d) => ({ ...d, ...p }))
   const patchFoundation = (p: Partial<Foundation>) =>
     setDraft((d) => ({
       ...d,
       foundation: { ...(d.foundation ?? DEFAULT_FOUNDATION), ...p },
-    }));
+    }))
   const setUnit = (i: number, u: Unit) =>
     setDraft((d) => ({
       ...d,
       units: d.units.map((x, j) => (j === i ? u : x)),
-    }));
+    }))
   const removeUnit = (i: number) =>
-    setDraft((d) => ({ ...d, units: d.units.filter((_, j) => j !== i) }));
+    setDraft((d) => ({ ...d, units: d.units.filter((_, j) => j !== i) }))
   const addUnit = () =>
     setDraft((d) => ({
       ...d,
       units: [...d.units, { id: nanoid(), kind: 'sc', count: 1 }],
-    }));
-
-  // 立ち上がりがあるときは、プリセットの繰り返し回数も「前段−1目」に合わせる
+    }))
   const applyPreset = (p: PresetResult) =>
-    setDraft((d) => {
-      const next: Row = {
-        ...d,
-        kind: 'round',
-        units: p.units,
-        repeat: p.repeat,
-      };
-      return next.turning ? fitRepeatToPrev(next, context.prevOut) : next;
-    });
+    patch({ kind: 'round', units: p.units, repeat: p.repeat })
 
   /** 段の種類を切り替える（鎖の作り目は、周回の設定を専用の形にそろえる） */
   const switchKind = (kind: RowKind) => {
-    if (kind === draft.kind) return;
+    if (kind === draft.kind) return
     if (kind === 'chain_foundation') {
-      const first = draft.units[0]?.kind;
-      const k = first && FOUNDATION_KINDS.includes(first) ? first : 'sc';
+      const first = draft.units[0]?.kind
+      const k = first && FOUNDATION_KINDS.includes(first) ? first : 'sc'
       patch({
         kind,
         foundation: draft.foundation ?? DEFAULT_FOUNDATION,
         units: [{ id: nanoid(), kind: k, count: 1 }],
         repeat: 1,
         rowSpan: 1,
-      });
+      })
     } else if (kind === 'magic_ring') {
-      patch({ kind, foundation: undefined });
+      patch({ kind, foundation: undefined })
     } else {
-      patch({ kind, foundation: undefined });
+      patch({ kind, foundation: undefined })
     }
-  };
+  }
 
-  // 立ち上がり: 目数が合っていた段なら、変更後も合うように繰り返し回数を自動で直す
-  const turning = draft.turning;
-  const counted = turning !== undefined && isTurningCounted(turning);
-  const consistent = c.stitchesIn === context.prevOut;
-  const setTurning = (t: Turning | undefined) =>
-    setDraft((d) => {
-      const next: Row = { ...d, turning: t };
-      return consistent ? fitRepeatToPrev(next, context.prevOut) : next;
-    });
-  const target = context.prevOut - (counted ? 1 : 0);
+  // 立ち上がり: 数えても、アクションや目数は変わらない（最初の1目が立ち上がりに置き換わるだけ）
+  const turning = draft.turning
+  const counted = turning !== undefined && isTurningCounted(turning)
+  const setTurning = (t: Turning | undefined) => patch({ turning: t })
 
   const turningHint = isFoundation
     ? counted
-      ? '1目に数える場合、1周目の最初の片側の1目が、この立ち上がりになります（1周目の目数は変わりません）。'
+      ? '1目に数える場合、1周目の編み始め（作り目の右端）の1目が、この立ち上がりになります（1周目の目数は変わりません）。'
       : '数えない場合は、鎖が増えるだけで、1周目の目数は変わりません。'
-    : draft.kind === 'magic_ring'
-    ? counted
-      ? '1目に数える場合、下のアクションは残りの目を受け持ちます（1周目の目数 = アクション + 立ち上がり1目）。'
-      : '数えない場合、立ち上がりの鎖は目数に入りません。'
     : counted
-    ? `1目に数える場合、下のアクションは残りの目（前段${context.prevOut}目 → ${target}目）を受け持ちます。`
-    : '数えない場合、下のアクションが前段の全目を受け持ちます。';
+      ? '1目に数える場合、段の最初の1目が立ち上がりに置き換わります（目数は変わりません）。'
+      : '数えない場合、鎖は目数に入りません（目数は変わりません）。'
 
   const turningEditor = (
     <TurningEditor
@@ -146,17 +121,17 @@ export default function RowEditorSheet({
       hint={turningHint}
       onChange={setTurning}
     />
-  );
+  )
 
-  // 「自動」: 前段の目数（立ち上がりを1目に数えるなら−1）÷ 1サイクルの消費目数
-  const cycleIn = draft.units.reduce((a, u) => a + computeUnit(u).in, 0);
-  const canAuto = draft.kind === 'round' && cycleIn > 0 && context.prevOut > 0;
-  const suggested = suggestedRepeat(draft, context.prevOut);
+  // 「自動」: 前段の目数 ÷ 1サイクルの消費目数
+  const cycleIn = draft.units.reduce((a, u) => a + computeUnit(u).in, 0)
+  const canAuto = draft.kind === 'round' && cycleIn > 0 && context.prevOut > 0
+  const suggested = suggestedRepeat(draft, context.prevOut)
 
   const tab = (active: boolean) =>
     `min-h-11 flex-1 rounded-lg text-sm ${
       active ? 'bg-pink-500 text-white' : 'bg-slate-100'
-    }`;
+    }`
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end">
@@ -179,9 +154,7 @@ export default function RowEditorSheet({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
-          <div className="text-sm text-slate-600">
-            前段: {context.prevOut}目
-          </div>
+          <div className="text-sm text-slate-600">前段: {context.prevOut}目</div>
 
           <div className="flex gap-2">
             <button
@@ -219,9 +192,7 @@ export default function RowEditorSheet({
                   <span className="w-28 text-sm">作り目の鎖</span>
                   <Stepper
                     label="作り目の鎖"
-                    value={
-                      draft.foundation?.chains ?? DEFAULT_FOUNDATION.chains
-                    }
+                    value={draft.foundation?.chains ?? DEFAULT_FOUNDATION.chains}
                     min={F.chainsMin}
                     max={F.chainsMax}
                     onChange={(chains) => patchFoundation({ chains })}
@@ -232,10 +203,7 @@ export default function RowEditorSheet({
                   <span className="w-28 text-sm">端に編み入れる</span>
                   <Stepper
                     label="端に編み入れる目数"
-                    value={
-                      draft.foundation?.endStitches ??
-                      DEFAULT_FOUNDATION.endStitches
-                    }
+                    value={draft.foundation?.endStitches ?? DEFAULT_FOUNDATION.endStitches}
                     min={F.endMin}
                     max={F.endMax}
                     onChange={(endStitches) => patchFoundation({ endStitches })}
@@ -288,8 +256,7 @@ export default function RowEditorSheet({
                 />
               </div>
 
-              {(draft.kind === 'round' || draft.kind === 'magic_ring') &&
-                turningEditor}
+              {(draft.kind === 'round' || draft.kind === 'magic_ring') && turningEditor}
 
               <div className="space-y-2">
                 <div className="text-xs text-slate-500">1サイクルの内容</div>
@@ -325,18 +292,15 @@ export default function RowEditorSheet({
                     type="button"
                     disabled={suggested === null}
                     className="min-h-11 rounded-lg bg-slate-100 px-3 text-sm disabled:opacity-35"
-                    onClick={() =>
-                      suggested !== null && patch({ repeat: suggested })
-                    }
+                    onClick={() => suggested !== null && patch({ repeat: suggested })}
                   >
                     自動
                   </button>
                 </div>
                 {canAuto && suggested === null && (
                   <div className="text-xs text-red-600">
-                    前段の目数{counted ? `（立ち上がり1目を除く）` : ''}(
-                    {target}
-                    )は1サイクルの消費目数({cycleIn})で割り切れません
+                    前段の目数({context.prevOut})は1サイクルの消費目数({cycleIn}
+                    )で割り切れません
                   </div>
                 )}
               </div>
@@ -380,9 +344,7 @@ export default function RowEditorSheet({
               </div>
             ))}
             {c.valid && (
-              <div className="mt-1 text-xs text-green-700">
-                ✔ 問題ありません
-              </div>
+              <div className="mt-1 text-xs text-green-700">✔ 問題ありません</div>
             )}
           </div>
         </div>
@@ -419,5 +381,5 @@ export default function RowEditorSheet({
         </div>
       </div>
     </div>
-  );
+  )
 }

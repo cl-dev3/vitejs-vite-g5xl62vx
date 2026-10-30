@@ -61,26 +61,30 @@ describe('楕円（鎖の作り目スタート）', () => {
       expect(pts[j][0] - pts[j - 1][0]).toBeCloseTo(W, 6);
   });
 
-  test('1周目の目は、編み入れる鎖の目につながる（上辺→左端→下辺→右端）', () => {
-    const g = oval();
-    const ring0 = g.nodes.filter((n) => n.rowIndex === 0);
-    const links = g.chain!.links;
-    expect(links).toHaveLength(22);
+  test('1周目の目は、編み入れる鎖の目につながる（右端→上辺→左端→下辺→右端）', () => {
+    const g = oval()
+    const ring0 = g.nodes.filter((n) => n.rowIndex === 0)
+    const links = g.chain!.links
+    expect(links).toHaveLength(22)
 
-    // 上辺の最初の目（右から）は、右から2つ目の鎖の真上
-    expect(ring0[0].x).toBeCloseTo(((L - 3) / 2) * W, 5);
-    expect(ring0[0].y).toBeCloseTo(-g.rings[0].radius, 5);
-    expect(links[0].to[0]).toBeCloseTo(((L - 3) / 2) * W, 6);
-    // 左端（先端）の目 → 左端の鎖
-    expect(links[L - 2].to[0]).toBeCloseTo(-((L - 1) / 2) * W, 6);
-    // 下辺の最初の目（左から）は、左から2つ目の鎖の真下
-    const bottom = ring0[L - 2 + E];
-    expect(bottom.x).toBeCloseTo(-((L - 3) / 2) * W, 5);
-    expect(bottom.y).toBeCloseTo(g.rings[0].radius, 5);
-    expect(links[L - 2 + E].to[0]).toBeCloseTo(-((L - 3) / 2) * W, 6);
-    // 右端（根元）の目 → 右端の鎖
-    expect(links[2 * (L - 2) + E].to[0]).toBeCloseTo(((L - 1) / 2) * W, 6);
-  });
+    // 1目目: 作り目の右端の上（右端の円弧の上側）
+    expect(ring0[0].x).toBeCloseTo(((L - 1) / 2) * W, 0)
+    expect(ring0[0].y).toBeLessThan(0)
+    expect(links[0].to[0]).toBeCloseTo(((L - 1) / 2) * W, 6)
+    // 2目目: 上辺の最初（右から2つ目の鎖の真上）
+    expect(ring0[1].x).toBeCloseTo(((L - 3) / 2) * W, 5)
+    expect(ring0[1].y).toBeCloseTo(-g.rings[0].radius, 5)
+    expect(links[1].to[0]).toBeCloseTo(((L - 3) / 2) * W, 6)
+    // 左端（先端）
+    expect(links[L - 1].to[0]).toBeCloseTo(-((L - 1) / 2) * W, 6)
+    // 下辺の最初（左から）
+    const bottomIndex = L - 2 + E + 1
+    expect(ring0[bottomIndex].x).toBeCloseTo(-((L - 3) / 2) * W, 5)
+    expect(ring0[bottomIndex].y).toBeCloseTo(g.rings[0].radius, 5)
+    expect(links[bottomIndex].to[0]).toBeCloseTo(-((L - 3) / 2) * W, 6)
+    // 右端（根元）の残りの目
+    expect(links[2 * (L - 2) + E + 1].to[0]).toBeCloseTo(((L - 1) / 2) * W, 6)
+  })
 
   test('2周目以降も同じ線分のまわりに広がる', () => {
     const g = oval();
