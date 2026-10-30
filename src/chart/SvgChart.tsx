@@ -1,23 +1,24 @@
-import { memo, useMemo } from 'react';
-import type { Section } from '../domain/types';
+import { memo, useMemo } from 'react'
+import type { Section } from '../domain/types'
 import type {
   ChainInfo,
   ChartGeometry,
   ChartLink,
+  IncGlyph,
   RingInfo,
   StitchNode,
   TurningMark,
-} from './geometry';
-import { INC_LEAN_DEG, SYMBOLS } from './symbols';
+} from './geometry'
+import { SYMBOLS } from './symbols'
 
 const RING_COLOR: Record<Section, string> = {
   crown: '#fbcfe8', // 頭頂
   body: '#bae6fd', // 本体
   brim: '#bbf7d0', // 縁
   free: '#e2e8f0', // その他
-};
-const BASE = '#64748b'; // slate-500
-const SELECT = '#ec4899';
+}
+const BASE = '#64748b' // slate-500
+const SELECT = '#ec4899'
 
 /** リングの形（中心の線分の長さが0なら円、あれば角丸の長方形） */
 function ringRect(ring: RingInfo) {
@@ -27,22 +28,18 @@ function ringRect(ring: RingInfo) {
     width: 2 * (ring.halfLength + ring.radius),
     height: 2 * ring.radius,
     rx: ring.radius,
-  };
+  }
 }
 
 interface ChainProps {
-  chain: ChainInfo;
-  selected: boolean;
-  showSymbols: boolean;
+  chain: ChainInfo
+  selected: boolean
+  showSymbols: boolean
 }
 
-const ChainLayer = memo(function ChainLayer({
-  chain,
-  selected,
-  showSymbols,
-}: ChainProps) {
-  const color = selected ? SELECT : BASE;
-  const pts = chain.points;
+const ChainLayer = memo(function ChainLayer({ chain, selected, showSymbols }: ChainProps) {
+  const color = selected ? SELECT : BASE
+  const pts = chain.points
   return (
     <g pointerEvents="none">
       {showSymbols &&
@@ -80,34 +77,36 @@ const ChainLayer = memo(function ChainLayer({
           />
         ) : (
           <circle key={i} cx={p[0]} cy={p[1]} r={1.6} fill={color} />
-        )
+        ),
       )}
     </g>
-  );
-});
+  )
+})
 
 interface LayerProps {
-  ring: RingInfo;
-  nodes: StitchNode[];
-  links: ChartLink[];
-  turning?: TurningMark;
-  selected: boolean;
-  showSymbols: boolean;
-  showLabels: boolean;
-  onSelect?: (rowId: string) => void;
+  ring: RingInfo
+  nodes: StitchNode[]
+  links: ChartLink[]
+  incs: IncGlyph[]
+  turning?: TurningMark
+  selected: boolean
+  showSymbols: boolean
+  showLabels: boolean
+  onSelect?: (rowId: string) => void
 }
 
 const RingLayer = memo(function RingLayer({
   ring,
   nodes,
   links,
+  incs,
   turning,
   selected,
   showSymbols,
   showLabels,
   onSelect,
 }: LayerProps) {
-  const color = selected ? SELECT : BASE;
+  const color = selected ? SELECT : BASE
   return (
     <g>
       <rect
@@ -117,32 +116,48 @@ const RingLayer = memo(function RingLayer({
         strokeWidth={selected ? 1.2 : 0.8}
         strokeOpacity={selected ? 0.5 : 1}
       />
+      {/* 親とのつながり（増し目はV記号で描くので、細い線は描かない） */}
       {showSymbols &&
-        links.map((l, i) => (
-          <line
-            key={i}
-            x1={l.from[0]}
-            y1={l.from[1]}
-            x2={l.to[0]}
-            y2={l.to[1]}
-            stroke={selected ? '#f9a8d4' : '#cbd5e1'}
-            strokeWidth={0.5}
-          />
-        ))}
+        links
+          .filter((l) => !l.inc)
+          .map((l, i) => (
+            <line
+              key={i}
+              x1={l.from[0]}
+              y1={l.from[1]}
+              x2={l.to[0]}
+              y2={l.to[1]}
+              stroke={selected ? '#f9a8d4' : '#cbd5e1'}
+              strokeWidth={0.5}
+            />
+          ))}
+      {/* 増し目（2目編み入れる）: 2目で1つのV記号 */}
+      {showSymbols &&
+        incs.flatMap((g, gi) =>
+          g.segments.map((s, si) => (
+            <line
+              key={`i${gi}-${si}`}
+              x1={s[0][0]}
+              y1={s[0][1]}
+              x2={s[1][0]}
+              y2={s[1][1]}
+              stroke={color}
+              strokeWidth={1.2}
+              strokeLinecap="round"
+            />
+          )),
+        )}
       {nodes.map((n) => {
         if (!showSymbols) {
           // 低詳細度: 記号の代わりに点で描く
-          return (
-            <circle key={n.index} cx={n.x} cy={n.y} r={1.6} fill={color} />
-          );
+          return <circle key={n.index} cx={n.x} cy={n.y} r={1.6} fill={color} />
         }
-        const sym = SYMBOLS[n.kind];
+        if (n.glyph) return null // 増し目のV記号に含まれる
+        const sym = SYMBOLS[n.kind]
         return (
           <g
             key={n.index}
-            transform={`translate(${n.x} ${n.y}) rotate(${
-              (n.angle * 180) / Math.PI + 90 + n.lean * INC_LEAN_DEG
-            })`}
+            transform={`translate(${n.x} ${n.y}) rotate(${((n.angle + n.tilt) * 180) / Math.PI + 90})`}
           >
             <path
               d={sym.d}
@@ -153,7 +168,7 @@ const RingLayer = memo(function RingLayer({
               strokeLinejoin="round"
             />
           </g>
-        );
+        )
       })}
       {/* 立ち上がりの鎖（○）と、編み終わりの引き抜き編み（●） */}
       {turning &&
@@ -170,7 +185,7 @@ const RingLayer = memo(function RingLayer({
             />
           ) : (
             <circle key={`t${i}`} cx={p[0]} cy={p[1]} r={1.4} fill={color} />
-          )
+          ),
         )}
       {turning?.join && (
         <circle
@@ -205,15 +220,15 @@ const RingLayer = memo(function RingLayer({
         onClick={() => onSelect?.(ring.rowId)}
       />
     </g>
-  );
-});
+  )
+})
 
 interface Props {
-  geometry: ChartGeometry;
-  selectedRowId?: string | null;
-  showSymbols?: boolean;
-  showLabels?: boolean;
-  onSelectRow?: (rowId: string) => void;
+  geometry: ChartGeometry
+  selectedRowId?: string | null
+  showSymbols?: boolean
+  showLabels?: boolean
+  onSelectRow?: (rowId: string) => void
 }
 
 function SvgChart({
@@ -224,25 +239,26 @@ function SvgChart({
   onSelectRow,
 }: Props) {
   const layers = useMemo(() => {
-    const nodeBy: StitchNode[][] = geometry.rings.map(() => []);
-    const linkBy: ChartLink[][] = geometry.rings.map(() => []);
-    const turnBy: (TurningMark | undefined)[] = geometry.rings.map(
-      () => undefined
-    );
-    geometry.nodes.forEach((n) => nodeBy[n.rowIndex].push(n));
-    geometry.links.forEach((l) => linkBy[l.rowIndex].push(l));
+    const nodeBy: StitchNode[][] = geometry.rings.map(() => [])
+    const linkBy: ChartLink[][] = geometry.rings.map(() => [])
+    const incBy: IncGlyph[][] = geometry.rings.map(() => [])
+    const turnBy: (TurningMark | undefined)[] = geometry.rings.map(() => undefined)
+    geometry.nodes.forEach((n) => nodeBy[n.rowIndex].push(n))
+    geometry.links.forEach((l) => linkBy[l.rowIndex].push(l))
+    geometry.incGlyphs.forEach((g) => incBy[g.rowIndex].push(g))
     geometry.turnings.forEach((t) => {
-      turnBy[t.rowIndex] = t;
-    });
+      turnBy[t.rowIndex] = t
+    })
     return geometry.rings.map((ring, i) => ({
       ring,
       nodes: nodeBy[i],
       links: linkBy[i],
+      incs: incBy[i],
       turning: turnBy[i],
-    }));
-  }, [geometry]);
+    }))
+  }, [geometry])
 
-  const b = geometry.bounds;
+  const b = geometry.bounds
   return (
     <svg
       viewBox={`${-b} ${-b} ${2 * b} ${2 * b}`}
@@ -263,6 +279,7 @@ function SvgChart({
           ring={l.ring}
           nodes={l.nodes}
           links={l.links}
+          incs={l.incs}
           turning={l.turning}
           selected={l.ring.rowId === selectedRowId}
           showSymbols={showSymbols}
@@ -271,7 +288,7 @@ function SvgChart({
         />
       ))}
     </svg>
-  );
+  )
 }
 
-export default memo(SvgChart);
+export default memo(SvgChart)
