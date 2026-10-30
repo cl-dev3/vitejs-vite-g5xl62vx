@@ -208,14 +208,14 @@ describe('鎖の作り目（楕円スタート）', () => {
     expect(c.rows[0].stitchesOut).toBe(22);
     expect(c.rows[0].valid).toBe(true);
     expect(c.rows[0].text).toBe(
-      '第1段：鎖10目の作り目をし、細編みを、鎖の片側に8目、先端に3目、鎖の反対側に8目、根元に3目編み入れる（計22目）'
+      '第1段：鎖10目の作り目をし、細編みを、鎖の片側に9目、先端に3目、鎖の反対側に8目、根元に2目編み入れる（計22目）'
     );
   });
 
   test('中長編みの周回', () => {
     const c = computeProject([createFoundationRow(8, 2, 'hdc')]);
     expect(c.rows[0].stitchesOut).toBe(16);
-    expect(c.rows[0].text).toContain('中長編みを、鎖の片側に6目、先端に2目');
+    expect(c.rows[0].text).toContain('中長編みを、鎖の片側に7目、先端に2目');
   });
 
   test('2周目: 両端を増して楕円を広げる', () => {
