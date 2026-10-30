@@ -74,7 +74,8 @@ function describeCounted(row: Row, prevOut: number): string {
 
 /**
  * 鎖の作り目（楕円スタート）の文章。チャートと同じ順番。
- * 立ち上がりを1目に数えるときは、編み始めの端（根元＝右端）の1目がその鎖になる。
+ * 1目目は、作り目の右端の鎖に入る（右端の鎖には、1目目＋根元の残りで、端の目数が入る）。
+ * 立ち上がりを1目に数えるときは、その1目目が立ち上がりに置き換わる。
  */
 function describeFoundation(row: Row): string {
   const f = row.foundation
@@ -82,10 +83,12 @@ function describeFoundation(row: Row): string {
   const kind = KIND_LABEL[row.units[0]?.kind ?? 'sc']
   const side = f.chains - 2
   const counted = row.turning !== undefined && isTurningCounted(row.turning)
-  const lastEnd = counted ? f.endStitches - 1 : f.endStitches
+  // 数えない（または立ち上がりなし）: 1目目が片側の最初。数える: 1目目は立ち上がり
+  const firstSide = counted ? side : side + 1
+  const lastEnd = f.endStitches - 1 // 根元: 1目目を除いた残り
   const turn = describeTurning(row)
   const segs = [
-    `鎖の片側に${side}目`,
+    `鎖の片側に${firstSide}目`,
     `先端に${f.endStitches}目`,
     `鎖の反対側に${side}目`,
     lastEnd > 0 ? `根元に${lastEnd}目` : '',

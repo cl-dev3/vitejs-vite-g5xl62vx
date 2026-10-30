@@ -235,9 +235,7 @@ export default function RowEditorSheet({
                   </select>
                 </div>
                 <div className="text-xs text-slate-500">
-                  1周目は {c.stitchesOut}目（2×(鎖−2)＋2×端）。鎖の片側に
-                  {(draft.foundation?.chains ?? 0) - 2}目、両端に
-                  {draft.foundation?.endStitches ?? 0}目ずつ編み入れます。
+                1周目は {c.stitchesOut}目（2×(鎖−2)＋2×端）です。
                 </div>
               </div>
               {turningEditor}
