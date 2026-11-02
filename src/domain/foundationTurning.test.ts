@@ -15,6 +15,7 @@ describe('鎖の作り目の1段目に立ち上がり', () => {
     expect(c.rows[0].text).toBe(
       '第1段：鎖10目の作り目をし、立ち上がり鎖2目（1目に数える）、中長編みを、鎖の片側に8目、先端に3目、鎖の反対側に8目、根元に2目編み入れる（計22目）',
     )
+  })
   test('立ち上がり鎖1目（数えない）＋引き抜き: 片側9、先端3、反対側8、根元2（計22目）', () => {
     const c = computeProject([found(10, 3, 'sc', { chains: 1, join: true })])
     expect(c.rows[0].valid).toBe(true)
