@@ -1,14 +1,18 @@
-import { useCallback } from 'react';
-import { effectiveScale, detailLevel } from '../chart/viewMath';
-import type { ChartGeometry } from '../chart/geometry';
-import SvgChart from '../chart/SvgChart';
-import { useZoomPan } from '../chart/useZoomPan';
+import { useCallback } from 'react'
+import type { AttachMarker } from '../chart/attachMarkers'
+import type { ChartGeometry } from '../chart/geometry'
+import SvgChart from '../chart/SvgChart'
+import { useZoomPan } from '../chart/useZoomPan'
+import { detailLevel, effectiveScale } from '../chart/viewMath'
+import MarkerOverlay from './MarkerOverlay'
 
 interface Props {
-  geometry: ChartGeometry;
-  selectedRowId?: string | null;
-  onSelectRow: (rowId: string) => void;
-  summary: string;
+  geometry: ChartGeometry
+  selectedRowId?: string | null
+  onSelectRow: (rowId: string) => void
+  summary: string
+  markers?: AttachMarker[]
+  onSelectMarker?: (partId: string) => void
 }
 
 export default function ChartPreview({
@@ -16,20 +20,29 @@ export default function ChartPreview({
   selectedRowId,
   onSelectRow,
   summary,
+  markers = [],
+  onSelectMarker,
 }: Props) {
-  const { ref, view, size, reset, wasDrag, handlers } = useZoomPan();
+  const { ref, view, size, reset, wasDrag, handlers } = useZoomPan()
 
-  const eff = effectiveScale(view.scale, size.w, size.h, geometry.bounds);
-  const { showSymbols, showLabels } = detailLevel(eff);
+  const eff = effectiveScale(view.scale, size.w, size.h, geometry.bounds)
+  const { showSymbols, showLabels } = detailLevel(eff)
 
-  // ドラッグやピンチの直後のタップはリング選択として扱わない
+  // ドラッグやピンチの直後のタップは、選択として扱わない
   const handleSelect = useCallback(
     (rowId: string) => {
-      if (wasDrag()) return;
-      onSelectRow(rowId);
+      if (wasDrag()) return
+      onSelectRow(rowId)
     },
-    [wasDrag, onSelectRow]
-  );
+    [wasDrag, onSelectRow],
+  )
+  const handleMarker = useCallback(
+    (partId: string) => {
+      if (wasDrag()) return
+      onSelectMarker?.(partId)
+    },
+    [wasDrag, onSelectMarker],
+  )
 
   return (
     <div
@@ -38,7 +51,7 @@ export default function ChartPreview({
       {...handlers}
     >
       <div
-        className="h-full w-full"
+        className="relative h-full w-full"
         style={{
           transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
           transformOrigin: 'center center',
@@ -51,7 +64,14 @@ export default function ChartPreview({
           showLabels={showLabels}
           onSelectRow={handleSelect}
         />
+        <MarkerOverlay geometry={geometry} markers={markers} onSelect={handleMarker} />
       </div>
+
+      {geometry.rings.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-slate-400">
+          段を追加すると、ここに編み図が表示されます
+        </div>
+      )}
 
       <div className="pointer-events-none absolute left-2 top-1 text-xs text-slate-500">
         {summary}
@@ -66,5 +86,5 @@ export default function ChartPreview({
         ⌖
       </button>
     </div>
-  );
+  )
 }

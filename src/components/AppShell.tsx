@@ -1,17 +1,19 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from 'react'
 
 interface Props {
-  title: string;
-  headerAction?: ReactNode;
-  preview: ReactNode;
-  footer: ReactNode;
-  children: ReactNode;
+  title: string
+  headerAction?: ReactNode
+  preview: ReactNode
+  partBar?: ReactNode
+  footer: ReactNode
+  children: ReactNode
 }
 
 export default function AppShell({
   title,
   headerAction,
   preview,
+  partBar,
   footer,
   children,
 }: Props) {
@@ -36,9 +38,11 @@ export default function AppShell({
         {preview}
       </section>
 
+      {partBar}
+
       <main className="flex-1 overflow-y-auto p-3">{children}</main>
 
       {footer}
     </div>
-  );
+  )
 }

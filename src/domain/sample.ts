@@ -42,7 +42,7 @@ export function createSampleProject(): Project {
   );
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: nanoid(),
     createdAt: now,
     updatedAt: now,
@@ -55,6 +55,7 @@ export function createSampleProject(): Project {
       crownIncrementPerRound: 6,
     },
     rows,
+    parts: [],
   };
 }
 /** 鎖の作り目スタートの楕円サンプル（鎖10目・端3目: 22→28→34→40目、本体6段） */

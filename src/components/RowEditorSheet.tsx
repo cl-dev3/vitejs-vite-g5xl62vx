@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
 import { useEffect, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { computeRow, computeUnit } from '../domain/compute'
 import type { EditContext } from '../domain/draft'
 import { FOUNDATION_LIMITS } from '../domain/foundation'
@@ -19,6 +20,7 @@ import PresetChips from './PresetChips'
 import Stepper from './Stepper'
 import TurningEditor from './TurningEditor'
 import UnitEditor from './UnitEditor'
+import { useSheetSnap } from './useSheetSnap'
 
 const SECTION_LABEL: Record<Section, string> = {
   crown: '頭頂',
@@ -29,6 +31,9 @@ const SECTION_LABEL: Record<Section, string> = {
 
 const FOUNDATION_KINDS: StitchKind[] = ['sc', 'hdc', 'dc']
 const DEFAULT_FOUNDATION: Foundation = { chains: 10, endStitches: 3 }
+
+/** 帯のボタンを押したとき、シートのドラッグを始めない */
+const stopDrag = (e: ReactPointerEvent) => e.stopPropagation()
 
 interface Props {
   title: string
@@ -51,6 +56,7 @@ export default function RowEditorSheet({
 }: Props) {
   const [draft, setDraft] = useState<Row>(initial)
   const [ignore, setIgnore] = useState(false)
+  const sheet = useSheetSnap()
   useEffect(() => {
     onDraftChange?.(draft)
   }, [draft, onDraftChange])
@@ -93,8 +99,6 @@ export default function RowEditorSheet({
         repeat: 1,
         rowSpan: 1,
       })
-    } else if (kind === 'magic_ring') {
-      patch({ kind, foundation: undefined })
     } else {
       patch({ kind, foundation: undefined })
     }
@@ -132,28 +136,75 @@ export default function RowEditorSheet({
     `min-h-11 flex-1 rounded-lg text-sm ${
       active ? 'bg-pink-500 text-white' : 'bg-slate-100'
     }`
+  const barBtn = 'h-11 shrink-0 px-2 text-xs text-slate-600'
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end">
       <div
+        ref={sheet.ref}
         role="dialog"
         aria-label={title}
-        className="pointer-events-auto flex max-h-[52dvh] flex-col rounded-t-2xl bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.18)]"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="pointer-events-auto flex flex-col overflow-hidden rounded-t-2xl bg-white shadow-[0_-4px_16px_rgba(0,0,0,0.18)]"
+        style={{
+          height: sheet.height,
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          transition: sheet.dragging ? 'none' : 'height 200ms ease-out',
+        }}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-2">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button
-            type="button"
-            aria-label="閉じる"
-            className="h-11 w-11 text-xl"
-            onClick={onCancel}
-          >
-            ×
-          </button>
+        {/* 上端の帯: ここを上下にスワイプして、図のみ／半分／全面を切り替える */}
+        <div
+          className="shrink-0 touch-none select-none border-b border-slate-200"
+          style={{ touchAction: 'none' }}
+          {...sheet.handlers}
+        >
+          <div className="flex justify-center pt-2">
+            <div className="h-1.5 w-10 rounded-full bg-slate-300" />
+          </div>
+          <div className="flex h-12 items-center justify-between pl-4 pr-1">
+            <h2 className="min-w-0 truncate text-base font-semibold">{title}</h2>
+            <div className="flex shrink-0 items-center" onPointerDown={stopDrag}>
+              {sheet.snap === 'min' ? (
+                <button
+                  type="button"
+                  className={barBtn}
+                  onClick={() => sheet.setSnap('half')}
+                >
+                  編集を開く
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={barBtn}
+                    onClick={() => sheet.setSnap('min')}
+                  >
+                    図のみ
+                  </button>
+                  <button
+                    type="button"
+                    className={barBtn}
+                    onClick={() => sheet.setSnap(sheet.snap === 'full' ? 'half' : 'full')}
+                  >
+                    {sheet.snap === 'full' ? '縮小' : '全画面'}
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                aria-label="閉じる"
+                className="h-11 w-11 shrink-0 text-xl"
+                onClick={onCancel}
+              >
+                ×
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-3">
+        <div
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3"
+          aria-hidden={sheet.snap === 'min'}
+        >
           <div className="text-sm text-slate-600">前段: {context.prevOut}目</div>
 
           <div className="flex gap-2">
@@ -235,7 +286,7 @@ export default function RowEditorSheet({
                   </select>
                 </div>
                 <div className="text-xs text-slate-500">
-                1周目は {c.stitchesOut}目（2×(鎖−2)＋2×端）です。
+                  1周目は {c.stitchesOut}目（2×(鎖−2)＋2×端）です。
                 </div>
               </div>
               {turningEditor}
