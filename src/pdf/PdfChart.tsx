@@ -1,4 +1,5 @@
 import { Circle, Ellipse, Line, Path, Rect, Svg, Text } from '@react-pdf/renderer'
+import type { AttachMarker } from '../chart/attachMarkers'
 import type { ChartGeometry } from '../chart/geometry'
 import { incLegendSegments } from '../chart/incShape'
 import { symbolPath } from '../chart/symbolPath'
@@ -12,6 +13,8 @@ const RING_COLOR: Record<Section, string> = {
   free: '#cbd5e1',
 }
 const INK = '#1f2937'
+// 接続マーカーの色（MarkerOverlay.tsx と同じ並び）
+const MARKER_COLORS = ['#7c3aed', '#0d9488', '#d97706', '#2563eb', '#db2777', '#65a30d']
 
 interface GlyphProps {
   kind: StitchKind
@@ -68,9 +71,10 @@ interface Props {
   geometry: ChartGeometry
   size: number // 一辺(pt)
   fontFamily: string
+  markers?: AttachMarker[] // 別パーツの接続マーカー（本体の図だけ）
 }
 
-export default function PdfChart({ geometry, size, fontFamily }: Props) {
+export default function PdfChart({ geometry, size, fontFamily, markers = [] }: Props) {
   const b = geometry.bounds
   return (
     <Svg width={size} height={size} viewBox={`${-b} ${-b} ${2 * b} ${2 * b}`}>
@@ -203,6 +207,28 @@ export default function PdfChart({ geometry, size, fontFamily }: Props) {
           {r.label}
         </Text>
       ))}
+      {/* 別パーツの接続マーカー（番号つきの丸） */}
+      {markers.flatMap((m) => [
+        <Circle
+          key={`mc${m.attachmentId}`}
+          cx={m.x}
+          cy={m.y}
+          r={5.5}
+          fill={MARKER_COLORS[(m.number - 1) % MARKER_COLORS.length]}
+          stroke="#ffffff"
+          strokeWidth={1}
+        />,
+        <Text
+          key={`mt${m.attachmentId}`}
+          x={m.x}
+          y={m.y + 2.3}
+          textAnchor="middle"
+          fill="#ffffff"
+          style={{ fontFamily, fontSize: 6.5 }}
+        >
+          {m.number}
+        </Text>,
+      ])}
     </Svg>
   )
 }

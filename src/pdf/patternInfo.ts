@@ -1,7 +1,8 @@
-import type { ChartGeometry } from '../chart/geometry';
-import { currentBodyHeightCm } from '../domain/gauge';
-import { hookDisplay } from '../domain/hooks';
-import type { Project, ProjectComputed, StitchKind } from '../domain/types';
+import type { ChartGeometry } from '../chart/geometry'
+import { currentBodyHeightCm } from '../domain/gauge'
+import { hookDisplay } from '../domain/hooks'
+import { attachmentLabel } from '../domain/parts'
+import type { Project, ProjectComputed, StitchKind } from '../domain/types'
 
 export const KIND_ORDER: StitchKind[] = [
   'sc',
@@ -13,7 +14,7 @@ export const KIND_ORDER: StitchKind[] = [
   'dec',
   'slst',
   'ch',
-];
+]
 
 export const LEGEND_LABEL: Record<StitchKind, string> = {
   sc: '細編み',
@@ -25,41 +26,65 @@ export const LEGEND_LABEL: Record<StitchKind, string> = {
   dec: '減らし目（2目を1目に）',
   slst: '引き抜き編み',
   ch: '鎖編み',
-};
+}
 
 /**
- * 凡例に出す編み目。図に出てくるものだけ。
+ * 複数の図（本体とパーツ）で使う編み目を、まとめて凡例に出す。
  * 鎖の作り目・立ち上がりの鎖があれば鎖編み、編み終わりの引き抜きがあれば引き抜き編みも入れる
  */
+export function legendKindsOf(geometries: ChartGeometry[]): StitchKind[] {
+  const used = new Set<StitchKind>()
+  for (const g of geometries) {
+    g.nodes.forEach((n) => used.add(n.kind))
+    if (g.chain || g.turnings.some((t) => t.points.length > 0)) used.add('ch')
+    if (g.turnings.some((t) => t.join)) used.add('slst')
+  }
+  return KIND_ORDER.filter((k) => used.has(k))
+}
+
+/** 1つの図の凡例 */
 export function legendKinds(g: ChartGeometry): StitchKind[] {
-  const used = new Set<StitchKind>(g.nodes.map((n) => n.kind));
-  if (g.chain || g.turnings.some((t) => t.points.length > 0)) used.add('ch');
-  if (g.turnings.some((t) => t.join)) used.add('slst');
-  return KIND_ORDER.filter((k) => used.has(k));
+  return legendKindsOf([g])
+}
+
+export interface PartSummary {
+  number: number // 1始まり
+  name: string
+  quantity: number
+  positions: string[] // 接続位置（例: 「第6段の1目め」）
+  note: string
+}
+
+/** 別パーツの一覧（出力用） */
+export function partSummaries(project: Project): PartSummary[] {
+  return project.parts.map((p, i) => ({
+    number: i + 1,
+    name: p.name,
+    quantity: p.quantity,
+    positions: p.attachments.map((a) => attachmentLabel(project, a)),
+    note: p.note ?? '',
+  }))
 }
 
 /** 材料・仕様表の項目（[見出し, 内容]） */
 export function specItems(
   project: Project,
-  computed: ProjectComputed
+  computed: ProjectComputed,
 ): [string, string][] {
-  const { meta } = project;
+  const { meta } = project
   const yarn = [
     meta.yarn.name,
     meta.yarn.weightLabel ? `（${meta.yarn.weightLabel}）` : '',
     meta.yarn.colorName ? ` / ${meta.yarn.colorName}` : '',
-  ].join('');
+  ].join('')
 
   return [
     ['使用糸', yarn || '-'],
     ['使用針', hookDisplay(meta.hook)],
-    [
-      'ゲージ',
-      `10cm四方で ${meta.gauge.stitchesPer10cm}目 × ${meta.gauge.rowsPer10cm}段`,
-    ],
+    ['ゲージ', `10cm四方で ${meta.gauge.stitchesPer10cm}目 × ${meta.gauge.rowsPer10cm}段`],
     ['頭囲', `${meta.target.headCircumferenceCm}cm`],
     ['高さ', `${currentBodyHeightCm(project)}cm`],
     ['総段数', `${computed.totalRows}段`],
     ['最大目数', `${computed.maxStitchesOut}目`],
-  ];
+  ]
 }

@@ -13,9 +13,10 @@ import RowCardList from './components/RowCardList'
 import RowEditorSheet from './components/RowEditorSheet'
 import { computeProject } from './domain/compute'
 import { contextForIndex, createDraft, type EditContext } from './domain/draft'
-import { MAIN_PART, rowsOf } from './domain/parts'
+import { MAIN_PART, checkAttachments, rowsOf  } from './domain/parts'
 import type { Row } from './domain/types'
 import { exportPdf, type PdfState } from './pdf/exportPdf'
+import { buildPartRenders } from './pdf/partRender'
 import PrintView from './pdf/PrintView'
 import { fileBaseName } from './pdf/printText'
 import { useProjectStore } from './store/projectStore'
@@ -91,11 +92,19 @@ export default function App() {
     [isMain, project, geometry],
   )
 
-  // 印刷用の座標（印刷するときだけ計算する。本体）
-  const printGeometry = useMemo(
-    () => (printing ? buildGeometry(project.rows) : null),
-    [printing, project.rows],
-  )
+    // 印刷用の座標（印刷するときだけ計算する。本体）
+    const printGeometry = useMemo(
+      () => (printing ? buildGeometry(project.rows) : null),
+      [printing, project.rows],
+    )
+    const printParts = useMemo(
+      () => (printing ? buildPartRenders(project) : []),
+      [printing, project],
+    )
+    const printMarkers = useMemo(
+      () => (printGeometry ? buildAttachMarkers(project, printGeometry) : []),
+      [printGeometry, project],
+    )
 
   // 印刷画面を描画してから、印刷ダイアログを開く（フォールバック用）
   const title = project.meta.title
@@ -117,10 +126,19 @@ export default function App() {
   }, [printing, title])
 
   const confirmInvalid = () => {
-    const bad = mainComputed.rows.filter((r) => !r.valid).length
+    const badRows =
+      mainComputed.rows.filter((r) => !r.valid).length +
+      project.parts.reduce(
+        (a, p) => a + computeProject(p.rows).rows.filter((r) => !r.valid).length,
+        0,
+      )
+    const badAttach = checkAttachments(project).length
+    const messages: string[] = []
+    if (badRows > 0) messages.push(`目数が合わない段が${badRows}段あります`)
+    if (badAttach > 0) messages.push(`接続位置に問題が${badAttach}件あります`)
     return (
-      bad === 0 ||
-      window.confirm(`目数が合わない段が${bad}段あります。このまま出力しますか？`)
+      messages.length === 0 ||
+      window.confirm(`${messages.join('。')}。このまま出力しますか？`)
     )
   }
 
@@ -329,8 +347,14 @@ export default function App() {
 
       {printing && printGeometry && (
         <div className="hidden print:block">
-          <PrintView project={project} computed={mainComputed} geometry={printGeometry} />
-        </div>
+                    <PrintView
+            project={project}
+            computed={mainComputed}
+            geometry={printGeometry}
+            parts={printParts}
+            markers={printMarkers}
+          />
+          </div>
       )}
     </>
   )
